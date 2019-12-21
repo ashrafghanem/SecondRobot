@@ -1,3 +1,7 @@
+#include <SoftwareSerial.h>
+
+SoftwareSerial HC12(12, 2); // TX, RX of HC-12
+
 #define leftCenterSensor   9
 #define leftNearSensor     A4
 #define leftFarSensor      4
@@ -44,13 +48,18 @@ void setup() {
   pinMode(rightMotor1, OUTPUT);
   pinMode(rightMotor2, OUTPUT);
 
+  // HC12 serial
+  pinMode(12, INPUT);
+  pinMode(2, OUTPUT);
+
   pinMode(ENA, OUTPUT);
   pinMode(ENB, OUTPUT);
   analogWrite(ENA, 100);
-  analogWrite(ENB, 100);
+  analogWrite(ENB, 140);
   
   pinMode(led, OUTPUT);
   Serial.begin(9600);
+  HC12.begin(9600);
   digitalWrite(led, HIGH);
 
   delay(1000);
@@ -58,6 +67,12 @@ void setup() {
 
 
 void loop() {
+	while(HC12.available()) {        // If HC-12 has data
+    Serial.write(HC12.read());      // Send the data to Serial monitor
+  }
+  
+  return;
+	
   readSensors();
 
   if (leftFarReading < 200 && rightFarReading < 200 &&
@@ -199,6 +214,13 @@ void done() {
   replaystage = 1;
   path[pathLength] = 'D';
   pathLength++;
+
+  int i=0;
+  for(;i<pathLength;i++){
+    HC12.write(path[i]);
+    delay(2000);
+  }
+
   while (convertValue(digitalRead(leftFarSensor)) > 200) {
     digitalWrite(led, LOW);
     delay(150);
