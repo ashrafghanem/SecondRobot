@@ -17,7 +17,7 @@ int rightCenterReading;
 int rightFarReading;
 
 int replaystage;
-#define leapTime 200
+#define leapTime 150
 
 int ENB = 5;
 #define leftMotor1  6
@@ -52,8 +52,8 @@ void setup() {
 
   pinMode(ENA, OUTPUT);
   pinMode(ENB, OUTPUT);
-  analogWrite(ENA, 100);
-  analogWrite(ENB, 140);
+  analogWrite(ENA, 95);
+  analogWrite(ENB, 135);
 
   pinMode(led, OUTPUT);
   Serial.begin(9600);
@@ -63,22 +63,29 @@ void setup() {
   delay(1000);
 }
 
-
 void loop() {
-  while (HC12.available()) {       // If HC-12 has data
-    Serial.write(HC12.read());     // Send the data to Serial monitor
+  analogWrite(ENA, 95);
+  analogWrite(ENB, 135);
+  while (HC12.available()) {            // If HC-12 has data
+    path[pathLength] = HC12.read();     // read path from HC-12
+    pathLength++;
   }
-  return;
+  if (path[pathLength - 1] != 'D') {
+    return;
+  }
 
-  readSensors();
+  replaystage = 1;
+  int flushTimes = 5;
+  while (flushTimes < 5) {
+    digitalWrite(led, LOW);
+    delay(150);
+    digitalWrite(led, HIGH);
+    delay(150);
+    flushTimes++;
+  }
+  delay(500);
 
-  if (leftFarReading < 200 && rightFarReading < 200 &&
-      (leftCenterReading > 200 || rightCenterReading > 200) ) {
-    straight();
-  }
-  else {
-    leftHandWall();
-  }
+  replay();
 }
 
 int convertValue(int real) {
@@ -120,100 +127,9 @@ void readSensors() {
   //   delay(2500);
 }
 
-void leftHandWall() {
-  if ( leftFarReading > 200 && rightFarReading > 200) { // T or cross or destination
-    digitalWrite(leftMotor1, HIGH);
-    digitalWrite(leftMotor2, LOW);
-    digitalWrite(rightMotor1, HIGH);
-    digitalWrite(rightMotor2, LOW);
-    delay(leapTime);
-    readSensors();
-
-    if (leftFarReading > 200 || rightFarReading > 200) {
-      done();
-    }
-    if (leftFarReading < 200 && rightFarReading < 200) {
-      turnLeft();
-    }
-  }
-
-  if (leftFarReading > 200) { // if you can turn left then turn left
-    digitalWrite(leftMotor1, HIGH);
-    digitalWrite(leftMotor2, LOW);
-    digitalWrite(rightMotor1, HIGH);
-    digitalWrite(rightMotor2, LOW);
-    delay(leapTime);
-    readSensors();
-
-    if (leftFarReading < 200 && rightFarReading < 200) {
-      turnLeft();
-    }
-    else {
-      done();
-    }
-  }
-
-  if (rightFarReading > 200) { // straight or right
-    digitalWrite(leftMotor1, HIGH);
-    digitalWrite(leftMotor2, LOW);
-    digitalWrite(rightMotor1, HIGH);
-    digitalWrite(rightMotor2, LOW);
-    delay(30);
-    readSensors();
-
-    if (leftFarReading > 200) {
-      delay(leapTime - 30);
-      readSensors();
-
-      if (rightFarReading > 200 && leftFarReading > 200) {
-        done();
-      }
-      else {
-        turnLeft();
-        return;
-      }
-    }
-    delay(leapTime - 30);
-    readSensors();
-    if (leftFarReading < 200 && leftCenterReading < 200 &&
-        rightCenterReading < 200 && rightFarReading < 200) {
-      turnRight();
-      return;
-    }
-    path[pathLength] = 'S';
-    pathLength++;
-    if (path[pathLength - 2] == 'B') {
-      shortPath();
-    }
-    straight();
-  }
-  readSensors();
-  if (leftFarReading < 200 && leftCenterReading < 200 && rightCenterReading < 200
-      && rightFarReading < 200) {
-    turnAround();
-  }
-}
-
-void done() {
-  digitalWrite(leftMotor1, LOW);
-  digitalWrite(leftMotor2, LOW);
-  digitalWrite(rightMotor1, LOW);
-  digitalWrite(rightMotor2, LOW);
-  replaystage = 1;
-  path[pathLength] = 'D';
-  pathLength++;
-
-  while (convertValue(digitalRead(leftFarSensor)) > 200) {
-    digitalWrite(led, LOW);
-    delay(150);
-    digitalWrite(led, HIGH);
-    delay(150);
-  }
-  delay(500);
-  replay();
-}
-
 void turnLeft() {
+  analogWrite(ENA, 105);
+  analogWrite(ENB, 145);
   while (convertValue(digitalRead(rightCenterSensor)) > 200 || convertValue(digitalRead(leftCenterSensor)) > 200) {
     digitalWrite(leftMotor1, LOW);
     digitalWrite(leftMotor2, HIGH);
@@ -239,17 +155,11 @@ void turnLeft() {
     digitalWrite(rightMotor2, LOW);
     delay(1);
   }
-
-  if (replaystage == 0) {
-    path[pathLength] = 'L';
-    pathLength++;
-    if (path[pathLength - 2] == 'B') {
-      shortPath();
-    }
-  }
 }
 
 void turnRight() {
+  analogWrite(ENA, 105);
+  analogWrite(ENB, 145);
   while (convertValue(digitalRead(rightCenterSensor)) > 200) {
     digitalWrite(leftMotor1, HIGH);
     digitalWrite(leftMotor2, LOW);
@@ -285,14 +195,6 @@ void turnRight() {
     digitalWrite(rightMotor1, LOW);
     digitalWrite(rightMotor2, LOW);
     delay(1);
-  }
-
-  if (replaystage == 0) {
-    path[pathLength] = 'R';
-    pathLength++;
-    if (path[pathLength - 2] == 'B') {
-      shortPath();
-    }
   }
 }
 
@@ -334,84 +236,6 @@ void straight() {
   digitalWrite(rightMotor1, LOW);
   digitalWrite(rightMotor2, LOW);
   delay(1);
-}
-
-void turnAround() {
-  digitalWrite(leftMotor1, HIGH);
-  digitalWrite(leftMotor2, LOW);
-  digitalWrite(rightMotor1, HIGH);
-  digitalWrite(rightMotor2, LOW);
-  delay(150);
-
-  while (convertValue(digitalRead(leftCenterSensor)) < 200) {
-    digitalWrite(leftMotor1, LOW);
-    digitalWrite(leftMotor2, HIGH);
-    digitalWrite(rightMotor1, HIGH);
-    digitalWrite(rightMotor2, LOW);
-    delay(2);
-    digitalWrite(leftMotor1, LOW);
-    digitalWrite(leftMotor2, LOW);
-    digitalWrite(rightMotor1, LOW);
-    digitalWrite(rightMotor2, LOW);
-    delay(1);
-  }
-
-  path[pathLength] = 'B';
-  pathLength++;
-  straight();
-}
-
-void shortPath() {
-  int shortDone = 0;
-  if (path[pathLength - 3] == 'L' && path[pathLength - 1] == 'R') {
-    pathLength -= 3;
-    path[pathLength] = 'B';
-    shortDone = 1;
-  }
-
-  if (path[pathLength - 3] == 'L' && path[pathLength - 1] == 'S' && shortDone == 0) {
-    pathLength -= 3;
-    path[pathLength] = 'R';
-    shortDone = 1;
-  }
-
-  if (path[pathLength - 3] == 'R' && path[pathLength - 1] == 'L' && shortDone == 0) {
-    pathLength -= 3;
-    path[pathLength] = 'B';
-    shortDone = 1;
-  }
-
-
-  if (path[pathLength - 3] == 'S' && path[pathLength - 1] == 'L' && shortDone == 0) {
-    pathLength -= 3;
-    path[pathLength] = 'R';
-    shortDone = 1;
-  }
-
-  if (path[pathLength - 3] == 'S' && path[pathLength - 1] == 'S' && shortDone == 0) {
-    pathLength -= 3;
-    path[pathLength] = 'B';
-    shortDone = 1;
-  }
-  if (path[pathLength - 3] == 'L' && path[pathLength - 1] == 'L' && shortDone == 0) {
-    pathLength -= 3;
-    path[pathLength] = 'S';
-    shortDone = 1;
-  }
-
-  path[pathLength + 1] = 'D';
-  path[pathLength + 2] = 'D';
-  pathLength++;
-}
-
-void printPath() {
-  Serial.println("+++++++++++++++++");
-  int x;
-  while (x <= pathLength) {
-    Serial.println(path[x]);
-    x++;
-  }
-  Serial.println("+++++++++++++++++");
 }
 
 void replay() {
@@ -456,10 +280,8 @@ void replay() {
       delay(leapTime);
       straight();
     }
-
     readLength++;
   }
-
   replay();
 }
 
